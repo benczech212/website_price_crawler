@@ -28,10 +28,26 @@ def parse_local_html(file_path):
         product_info['Strain'] = strain_element.text.strip() if strain_element else "N/A"
 
         thc_element = product.select_one('.thc-info-data')
-        product_info['THC Percentage'] = thc_element.text.strip() if thc_element else "N/A"
+        product_info['THC Percentage'] = float(thc_element.text.strip().rstrip('%')) if thc_element else "N/A"
 
-        price_element = product.select_one('.price')
-        product_info['Price'] = price_element.text.strip() if price_element else "N/A"
+        price_box = product.select_one('.price-box')
+
+        if price_box:
+            regular_price_element = price_box.select_one('.old-price .price')
+            sale_price_element = price_box.select_one('.special-price .price')
+
+            if sale_price_element:
+                product_info['Regular Price'] = float(regular_price_element.text.replace('$', '').strip()) if regular_price_element else "N/A"
+                product_info['Sale Price'] = float(sale_price_element.text.replace('$', '').strip()) if sale_price_element else "N/A"
+                product_info['On Sale'] = True
+            else:
+                product_info['Regular Price'] = float(price_box.select_one('.price-container .price').text.replace('$', '').strip()) if price_box.select_one('.price-container .price') else "N/A"
+                product_info['Sale Price'] = "N/A"
+                product_info['On Sale'] = False
+        else:
+            product_info['Regular Price'] = "N/A"
+            product_info['Sale Price'] = "N/A"
+            product_info['On Sale'] = False
 
         # Extract the image URL
         img_url = product.select_one('.product-image-photo')['src'] if product.select_one('.product-image-photo') else "N/A"
@@ -48,10 +64,10 @@ def parse_local_html(file_path):
     df = df[df['Weight'].notna()]
 
     # Filter rows where 'THC Percentage' and 'Price' are not 'N/A'
-    df = df[(df['THC Percentage'] != 'N/A') & (df['Price'] != 'N/A')]
+    df = df[(df['THC Percentage'] != 'N/A') & (df['Regular Price'] != 'N/A')]
 
     # Calculate the 'Value' column
-    df['Value'] = (df['Weight'] * df['THC Percentage'].str.rstrip('%').astype(float) / df['Price'].str.replace('$', '').astype(float)).fillna(0)
+    df['Value'] = (df['Weight'] * df['THC Percentage'] / df['Regular Price']).fillna(0)
 
     # Sort the DataFrame by the 'Value' column
     df = df.sort_values(by='Value', ascending=False)
